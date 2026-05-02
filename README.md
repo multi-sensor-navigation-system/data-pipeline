@@ -10,6 +10,8 @@
 > **Repo 2 of 4** · Deterministic serial logging, automated session trimming, and ultra-robust sensor calibration pipeline.
 > 
 > Transforms raw UART streams from [Repo 1](https://github.com/multi-sensor-navigation-system/firmware) into cleaned, calibrated and analysis-ready datasets.
+>
+> ⚠️ *This repository was named `navigation-system-pipeline` before moving under the `multi-sensor-navigation-system` organization from [@ShivtejG236](https://github.com/ShivtejG236).*
 
 ---
 
