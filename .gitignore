@@ -1,0 +1,8 @@
+.nav/
+data/
+outputs/
+calibration_params.json
+.DS_Store
+__MACOSX/
+**/__pycache__/
+*.pyc
