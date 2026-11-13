@@ -10,14 +10,15 @@ Usage:
 
 Output:
     logs/session_YYYYMMDD_HHMMSS.csv
+    logs/firmware.json   — what the firmware said about itself (binary builds)
 
-    A new file is created each run. The CSV header is taken from the
-    firmware's first non-comment line, so column names stay in sync
-    automatically.
+    A new file is created each run. Both firmware builds are understood:
+    the default binary wire protocol and the CSV debug build (see wire.py).
 """
 
 import argparse
 import csv
+import json
 import sys
 import time
 from datetime import datetime
@@ -25,6 +26,8 @@ from pathlib import Path
 
 import serial
 import serial.tools.list_ports
+
+import wire
 
 # ── CONFIG ────────────────────────────────────────────
 BAUD          = 921600
@@ -113,72 +116,72 @@ def log_session(out_path: Path, port: str | None = None, timeout: int = 30) -> i
     rows_written = 0
     csv_writer   = None
     csv_file     = None
+    decoder      = wire.StreamDecoder()
+    last_drops   = 0
     t_start      = time.time()
 
     try:
         with serial.Serial(port, BAUD, timeout=TIMEOUT_S) as ser:
-            print("  Opened serial port. Waiting for firmware header…")
+            print("  Opened serial port. Waiting for firmware…")
 
-            # Pulse DTR to reset the ESP32 so it reprints the header.
-            # Without this, if the ESP32 booted before we connected we miss
-            # the header and time out.
+            # Pulse DTR to reset the ESP32 so it announces itself straight away.
+            # (Binary firmware also repeats its hello every 2 s, CSV firmware
+            # only prints its header at boot.)
             ser.dtr = False
             time.sleep(0.1)
             ser.dtr = True
             time.sleep(0.5)
 
-            # Wait for header line (first non-comment line from firmware)
-            header_cols = None
             deadline = time.time() + timeout
-            while time.time() < deadline:
-                raw = ser.readline()
-                if not raw:
-                    continue
-                line = raw.decode("utf-8", errors="replace").strip()
-                if line.startswith("#"):
-                    print(f"  [FW] {line[2:].strip()}")
-                    continue
-                if "t_imu_us" in line:
-                    header_cols = [c.strip() for c in line.split(",")]
-                    print(f"  Header received ({len(header_cols)} columns).")
-                    break
-
-            if header_cols is None:
-                print("ERROR: No header received within timeout. Is firmware running?")
-                sys.exit(1)
-
-            csv_file   = open(out_path, "w", newline="", buffering=1)
-            csv_writer = csv.DictWriter(csv_file, fieldnames=header_cols,
-                                        extrasaction="ignore")
-            csv_writer.writeheader()
-
-            print(f"  Logging… (preview every {PREVIEW_EVERY} rows)\n")
-
             while True:
-                raw = ser.readline()
-                if not raw:
-                    continue
-                line = raw.decode("utf-8", errors="replace").strip()
-
-                # Pass firmware comments straight to terminal
-                if line.startswith("#"):
-                    print(f"\n  [FW] {line[2:].strip()}")
-                    continue
-                if not line:
+                chunk = ser.read(max(1, getattr(ser, "in_waiting", 0) or 1))
+                if csv_writer is None and time.time() > deadline:
+                    print("ERROR: Firmware did not identify itself within the timeout. Is it running?")
+                    sys.exit(1)
+                if not chunk:
                     continue
 
-                cols = line.split(",")
-                if len(cols) != len(header_cols):
-                    # Malformed row (e.g. partial write at startup) — show it instead of silently dropping
-                    print(f"\n  [UNEXPECTED] {line}")
-                    continue
+                for ev in decoder.feed(chunk):
+                    if ev.kind == "log":
+                        print(f"\n  [FW] {ev.payload}")
 
-                row = dict(zip(header_cols, cols))
-                csv_writer.writerow(row)
-                rows_written += 1
+                    elif ev.kind == "hello":
+                        if csv_writer is not None:
+                            continue                      # periodic repeat
+                        info = ev.payload
+                        if info["proto"] not in (0, wire.PROTO_VERSION):
+                            print(f"ERROR: Firmware speaks wire protocol v{info['proto']}; "
+                                  f"this logger understands v{wire.PROTO_VERSION}. Update the pipeline.")
+                            sys.exit(1)
+                        if decoder.mode == "binary":
+                            print(f"  Firmware : {info.get('fw', '?')} ({info.get('git', '?')}) "
+                                  f"on {info.get('board', '?')}, sensors: {info.get('sensors', '?')}")
+                            out_path.with_name("firmware.json").write_text(json.dumps(info, indent=2))
+                        else:
+                            print("  Firmware : CSV debug build")
+                        csv_file   = open(out_path, "w", newline="", buffering=1)   # noqa: SIM115
+                        csv_writer = csv.DictWriter(csv_file, fieldnames=decoder.header,
+                                                    extrasaction="ignore")
+                        csv_writer.writeheader()
+                        t_start = time.time()
+                        print(f"  Logging {decoder.mode} stream… (preview every {PREVIEW_EVERY} rows)\n")
 
-                if rows_written % PREVIEW_EVERY == 0:
-                    preview(row, rows_written, t_start)
+                    elif ev.kind == "row":
+                        if csv_writer is None:
+                            continue                      # attached mid-stream: wait for the hello
+                        csv_writer.writerow(ev.payload)
+                        rows_written += 1
+                        if rows_written % PREVIEW_EVERY == 0:
+                            preview(ev.payload, rows_written, t_start)
+
+                    elif ev.kind == "status":
+                        if decoder.rb_drops > last_drops:
+                            print(f"\n  [FW] rb_drops={decoder.rb_drops}")
+                            last_drops = decoder.rb_drops
+
+                    elif ev.kind == "bad":
+                        # Malformed CSV row (e.g. partial write at startup) — show it instead of silently dropping
+                        print(f"\n  [UNEXPECTED] {ev.payload}")
 
     except KeyboardInterrupt:
         print("\n\n  Stopped by user.")
@@ -191,9 +194,14 @@ def log_session(out_path: Path, port: str | None = None, timeout: int = 30) -> i
     elapsed = time.time() - t_start
     print(f"  Rows written : {rows_written:,}")
     print(f"  Duration     : {elapsed:.1f} s")
-    print(f"  Avg rate     : {rows_written/elapsed:.1f} Hz" if elapsed > 0 else "")
+    if elapsed > 0:
+        print(f"  Avg rate     : {rows_written/elapsed:.1f} Hz")
+    if decoder.mode == "binary":
+        print(f"  Lost frames  : {decoder.lost_frames:,}  (CRC errors: {decoder.crc_errors:,})")
+    print(f"  FW rb_drops  : {decoder.rb_drops:,}")
     print(f"  File         : {out_path}")
-    print(f"  File size    : {out_path.stat().st_size / 1024:.1f} KB" if rows_written > 0 else "")
+    if rows_written > 0:
+        print(f"  File size    : {out_path.stat().st_size / 1024:.1f} KB")
     return rows_written
 
 

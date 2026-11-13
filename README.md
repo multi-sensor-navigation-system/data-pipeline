@@ -23,7 +23,7 @@ The pipeline follows a deterministic multi-stage flow:
 
 | Stage | Module | Responsibility | Output |
 |---|---|---|---|
-| **1. Log** | `logger.py` | High-speed serial → CSV | `raw/raw.csv` |
+| **1. Log** | `logger.py` + `wire.py` | Binary frames (or CSV debug stream) → CSV | `raw/raw.csv`, `raw/firmware.json` |
 | **2. Trim** | `session_trimmer.py` | Signal/Noise segmentation | `clean/signal_v1.csv` |
 | **3. Diagnose** | `diagnostics.py` | Timing, jitter & alignment | `diagnostics/timing_v1.json` |
 | **4. Calibrate** | `calibrator.py` | Bias, scale & hard-iron | `calibrated/calibrated_v1.csv` |
@@ -193,6 +193,7 @@ data-pipeline/
 │   └── reports/             # Markdown session summaries
 ├── pipeline/
 │   ├── logger.py            # High-speed UART listener
+│   ├── wire.py              # Wire protocol v1 decoder (binary + CSV detection)
 │   ├── session_trimmer.py   # Signal/Noise segmenter
 │   ├── diagnostics.py       # Timing & jitter analysis
 │   ├── calibrator.py        # Bias, scale & hard-iron calibration
