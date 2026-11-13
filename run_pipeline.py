@@ -19,7 +19,6 @@ Pipeline order:
 import argparse
 import importlib.util
 import json
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -157,7 +156,7 @@ def write_metadata(session_dir: Path, session_type: str, steps_run: list[str],
         meta["accel_scale"] = calib_json.get("accel_scale")
 
     (session_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
-    print(f"\n  ✓ metadata.json written")
+    print("\n  ✓ metadata.json written")
     return meta
 
 
@@ -236,79 +235,85 @@ def _load_json_safe(path: Path) -> dict | None:
         return None
 
 
+UNCALIBRATED_STATE = {
+    "is_calibrated": False,
+    "user_overridden": True,
+    "override_type": "allowed uncalibrated",
+    "valid_for_analysis": False,
+    "reason": "Missing calibration parameters; run was forced in permissive mode.",
+}
+
+
 def enforce_calibration_check(session_type: str, args) -> dict:
+    """Decide how to proceed when calibration params may be missing.
+
+    Always returns the calibration-state dict consumed by write_metadata(),
+    or exits the process when the run must not continue.
+    """
     global PARAMS_FILE
-    
+
     state = {
         "is_calibrated": True,
         "user_overridden": False,
         "override_type": "none",
         "valid_for_analysis": True
     }
-    
+
     if session_type == "static_calib" or PARAMS_FILE.exists():
         return state
 
     print(f"\n  \033[93m⚠ WARNING: No calibration_params.json found at {PARAMS_FILE}\033[0m")
     print("  Dynamic sessions require calibration parameters to produce valid output.")
-    
-    if args.calib_mode == "0":
-        print("  [Auto] Aborting (strict mode).")
-        import sys; sys.exit(1)
-    elif args.calib_mode == "1":
-        print("  [Auto] Continuing without calibration (permissive mode).")
-        state.update({
-            "is_calibrated": False,
-            "user_overridden": True,
-            "override_type": "allowed uncalibrated",
-            "valid_for_analysis": False,
-            "reason": "Missing calibration parameters; run was forced in permissive mode."
-        })
-        return state
-    elif args.calib_path:
+
+    # An explicit --calib-path wins over --calib-mode (documented behaviour).
+    if args.calib_path:
         p = Path(args.calib_path)
-        if p.exists() and p.is_file():
+        if p.is_file():
             PARAMS_FILE = p
             print(f"  [Auto] Using custom params file: {PARAMS_FILE}")
             state.update({
                 "user_overridden": True,
-                "override_type": "custom path provided"
+                "override_type": "custom path provided",
             })
             return state
-        else:
-            print("  [Auto] Custom params file not found. Aborting.")
-            import sys; sys.exit(1)
+        print("  [Auto] Custom params file not found. Aborting.")
+        sys.exit(1)
+
+    if args.calib_mode == "0":
+        print("  [Auto] Aborting (strict mode).")
+        sys.exit(1)
+    if args.calib_mode == "1":
+        print("  [Auto] Continuing without calibration (permissive mode).")
+        state.update(UNCALIBRATED_STATE)
+        return state
 
     opts = {
         "0": "Abort pipeline (strict mode: run a static_calib session first)",
         "1": "Continue without calibration (permissive mode: NOT suitable for analysis)",
-        "p": "Enter custom path to a calibration_params.json file"
+        "p": "Enter custom path to a calibration_params.json file",
     }
     choice = ask("How to proceed?", opts, default="0")
-    if choice == "0":
-        print("  Aborting. Please run a static_calib session to generate parameters.")
-        import sys; sys.exit(1)
-    elif choice == "1":
+    if choice == "1":
         print("  Continuing in permissive mode. 'calibrate' step will be skipped.\nOutputs NOT valid for analysis.\n")
-        state.update({
-            "is_calibrated": False,
-            "user_overridden": True,
-            "override_type": "allowed uncalibrated",
-            "valid_for_analysis": False,
-            "reason": "Missing calibration parameters; run was forced in permissive mode."
-        })
+        state.update(UNCALIBRATED_STATE)
         return state
-    elif choice == "p":
+    if choice == "p":
         custom_path = input("  Enter full path to parameters file: ").strip()
         p = Path(custom_path)
-        if p.exists() and p.is_file():
+        if p.is_file():
             PARAMS_FILE = p
             print(f"\n  Using custom params file: {PARAMS_FILE}")
-            return True
-        else:
-            print("  File not found. Aborting.")
-            import sys; sys.exit(1)
-    return False
+            state.update({
+                "user_overridden": True,
+                "override_type": "custom path provided",
+            })
+            return state
+        print("  File not found. Aborting.")
+        sys.exit(1)
+
+    print("  Aborting. Please run a static_calib session to generate parameters.")
+    sys.exit(1)
+
 
 # ── main menu ──────────────────────────────────────────────────────────────────
 def menu_new_session(args) -> tuple[str, Path, str]:
@@ -319,10 +324,10 @@ def menu_new_session(args) -> tuple[str, Path, str]:
     session_dir.mkdir(parents=True, exist_ok=True)
     (session_dir / "raw").mkdir(exist_ok=True)
     print(f"\n\n  Session folder: data/{name}")
-    
+
     # Prompt for session note for all new sessions
     user_note = args.user_note if args.user_note else input("\n  Enter a note for this session (e.g., 'desk', 'bike ride') [none]: ").strip()
-    
+
     return session_type, session_dir, user_note
 
 
@@ -363,7 +368,7 @@ def run_pipeline(session_dir: Path, session_type: str, start_from: str = "log", 
         raw_path = session_dir / "raw" / "raw.csv"
         print(f"\n\n  Logger will write to: data/{session_dir.name}/raw/raw.csv")
         print("  Press Ctrl-C in the logger to stop and continue the pipeline.\n")
-        logger.main_with_path(raw_path)   # see logger.py for this entry point
+        logger.log_session(raw_path)
         steps_run.append("log")
 
     # ── 2. Trim ───────────────────────────────────────────────────────────────
@@ -382,20 +387,20 @@ def run_pipeline(session_dir: Path, session_type: str, start_from: str = "log", 
     # ── 4. Calibrate ──────────────────────────────────────────────────────────
     if order.index("calibrate") >= start_idx:
         calibrator = import_pipeline("calibrator")
-        
+
         # Always compute new parameters if this is a calibration session
         if session_type == "static_calib":
             print("\n  Computing NEW calibration params from this static session...")
             # Use the session note if we're in Action 1, otherwise prompt
             note = user_note if user_note else input("  Enter a note for this calibration (e.g., 'desk', 'bike') [none]: ").strip()
             run_step("compute_params", calibrator.compute_params, session_dir, PARAMS_FILE, note)
-            
+
         if not PARAMS_FILE.exists():
             print(f"\n  ⚠  calibration_params.json not found at {PARAMS_FILE}")
             print("  Run a static_calib session first to generate it.")
             print("  Skipping calibration application step.")
         else:
-            csv_path = run_step("calibrator", calibrator.apply_params, session_dir, PARAMS_FILE)
+            run_step("calibrator", calibrator.apply_params, session_dir, PARAMS_FILE)
             v = _latest_v(session_dir / "calibrated", "calibration")
             calib_json = _load_json_safe(session_dir / "calibrated" / f"calibration_v{v}.json")
             steps_run.append("calibrate")
@@ -481,7 +486,7 @@ def main():
         run_pipeline(session_dir, session_type, start_from=start_from, args=args, calib_state=cs, user_note=user_note)
 
     elif action == "4":
-        session_dir = menu_existing_session()
+        session_dir = menu_existing_session(args)
         calibrator = import_pipeline("calibrator")
         user_note = input("\n  Enter a note for this calibration (e.g., 'static (desk)', 'dynamic (bike)') [none]: ").strip()
         calibrator.compute_params(session_dir, PARAMS_FILE, user_note)
