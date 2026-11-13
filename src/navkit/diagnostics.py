@@ -9,8 +9,8 @@ Analyses:
   - Missing / duplicate samples  (gaps > 3×expected, duplicate t_imu_us)
   - Clock drift                  (MCU timer drift relative to GPS time)
 
-Called by run_pipeline.py or standalone:
-    python pipeline/diagnostics.py <session_dir> [--version N]
+Called by navkit.pipeline or standalone:
+    python -m navkit.diagnostics <session_dir> [--version N]
 
 Inputs:
     data/<session>/clean/signal_v<i>.csv

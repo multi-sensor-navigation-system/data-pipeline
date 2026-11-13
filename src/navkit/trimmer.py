@@ -5,8 +5,8 @@ session_trimmer.py  —  Segment a raw session CSV into signal and noise files.
 Detects ESP32 reboot boundaries (backward jumps in t_imu_us > 0.5 s),
 removes serial framing errors, and writes versioned outputs.
 
-Called by run_pipeline.py or standalone:
-    python pipeline/session_trimmer.py <session_dir>
+Called by navkit.pipeline or standalone:
+    python -m navkit.trimmer <session_dir>
 
 Inputs:
     data/<session>/raw/raw.csv
@@ -183,6 +183,6 @@ def run(session_dir: Path) -> Path:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python pipeline/session_trimmer.py data/<session>")
+        print("Usage: python -m navkit.trimmer data/<session>")
         sys.exit(1)
     run(Path(sys.argv[1]))

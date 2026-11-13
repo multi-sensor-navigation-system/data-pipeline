@@ -1,5 +1,61 @@
-# Tooling configuration only. Packaging metadata arrives with the navkit
-# restructure; until then the pipeline runs from a source checkout.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "navkit"
+dynamic = ["version"]
+description = "Host tools for the Multi-Sensor Navigation System: flash firmware, log sessions, calibrate."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Shivtej Gaikwad" }]
+keywords = ["esp32", "imu", "gps", "sensor-fusion", "calibration", "data-logging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+    "Programming Language :: Python :: 3",
+]
+# Core: everything needed to flash a board and log from it.
+dependencies = [
+    "pyserial>=3.5",
+    "esptool>=5.0",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+# Trim, diagnose, calibrate and plot.
+pipeline = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+]
+dev = [
+    "navkit[pipeline]",
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+nav = "navkit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/multi-sensor-navigation-system"
+Repository = "https://github.com/multi-sensor-navigation-system/data-pipeline"
+Changelog = "https://github.com/multi-sensor-navigation-system/data-pipeline/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/navkit/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/navkit"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 target-version = "py310"
@@ -18,4 +74,3 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "pipeline"]

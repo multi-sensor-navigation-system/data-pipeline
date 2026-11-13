@@ -3,10 +3,10 @@
 logger.py — Serial → CSV logger for the ESP32 nav-stack firmware.
 
 Usage:
-    python pipeline/logger.py                        # auto-detect port
-    python pipeline/logger.py --port COM3            # Windows
-    python pipeline/logger.py --port /dev/ttyUSB0    # Linux
-    python pipeline/logger.py --port /dev/cu.usbserial-0001  # macOS
+    python -m navkit.logger                        # auto-detect port
+    python -m navkit.logger --port COM3            # Windows
+    python -m navkit.logger --port /dev/ttyUSB0    # Linux
+    python -m navkit.logger --port /dev/cu.usbserial-0001  # macOS
 
 Output:
     logs/session_YYYYMMDD_HHMMSS.csv
@@ -25,9 +25,9 @@ from datetime import datetime
 from pathlib import Path
 
 import serial
-import serial.tools.list_ports
 
-import wire
+from . import wire
+from .ports import find_esp32_port
 
 # ── CONFIG ────────────────────────────────────────────
 BAUD          = 921600
@@ -43,26 +43,6 @@ FAULT_LABELS = {
     3: "GPS_HDOP",
     4: "GPS_NOFIX",
 }
-
-
-# ── PORT AUTO-DETECT ──────────────────────────────────
-def find_esp32_port() -> str | None:
-    """Heuristic: look for Silicon Labs CP210x or CH340 (common ESP32 USB chips)."""
-    candidates = []
-    for p in serial.tools.list_ports.comports():
-        desc = (p.description or "").lower()
-        mfr  = (p.manufacturer or "").lower()
-        if any(x in desc + mfr for x in ["cp210", "ch340", "esp32", "silicon"]):
-            candidates.append(p.device)
-    if len(candidates) == 1:
-        return candidates[0]
-    if candidates:
-        print("Multiple ESP32-like ports found:")
-        for i, c in enumerate(candidates):
-            print(f"  [{i}] {c}")
-        idx = int(input("Select index: "))
-        return candidates[idx]
-    return None
 
 
 # ── FAULT FLAG DECODER ────────────────────────────────
@@ -98,7 +78,7 @@ def preview(row: dict, row_count: int, t_start: float):
 def log_session(out_path: Path, port: str | None = None, timeout: int = 30) -> int:
     """Log the firmware CSV stream to ``out_path`` until Ctrl-C.
 
-    Returns the number of rows written. Called by run_pipeline.py and by
+    Returns the number of rows written. Called by navkit.pipeline and by
     the standalone CLI below.
     """
     port = port or find_esp32_port()

@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import diagnostics
-import session_trimmer
+from navkit import diagnostics
+from navkit import trimmer as session_trimmer
 
 
 def test_dt_stats_reports_actual_rate():

@@ -10,9 +10,9 @@ TWO MODES:
   --apply           Apply saved params to any session, adding corrected and
                     derived columns. Saves calibrated_vi.csv + calibration_vi.json.
 
-Called by run_pipeline.py or standalone:
-    python pipeline/calibrator.py --compute-params data/static_calib_session
-    python pipeline/calibrator.py --apply data/mag_rot_session --params calibration_params.json
+Called by navkit.pipeline or standalone:
+    python -m navkit.calibrator --compute-params data/static_calib_session
+    python -m navkit.calibrator --apply data/mag_rot_session --params calibration_params.json
 
 Calibration steps applied:
   1. Gyroscope bias subtraction    (from static session mean per axis)
