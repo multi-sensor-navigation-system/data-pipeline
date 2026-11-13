@@ -232,7 +232,7 @@ def compute_params(session_dir: Path, params_path: Path, user_note: str = ""):
         },
     }
 
-    params_path.write_text(json.dumps(params, indent=2))
+    params_path.write_text(json.dumps(params, indent=2), encoding="utf-8")
     print(f"\n  Gyro bias     : gx={gyro_bias[0]:+.4f}  gy={gyro_bias[1]:+.4f}  gz={gyro_bias[2]:+.4f}  °/s")
     print(f"  Accel bias    : {[f'{x:+.4f}' for x in accel_bias]}")
     print(f"  Accel scale   : {[f'{x:.4f}' for x in accel_scale]}")
@@ -277,7 +277,7 @@ def apply_params(session_dir: Path, params_path: Path):
     print(f"  Input  : {sig_path.name}")
     print(f"  Params : {params_path.name}")
 
-    params = json.loads(params_path.read_text())
+    params = json.loads(params_path.read_text(encoding="utf-8"))
     df     = load_signal(sig_path)
 
     df_cal = apply_calibration(df, params)
@@ -310,7 +310,7 @@ def apply_params(session_dir: Path, params_path: Path):
         "post_cal_accel_mean_g":  round(accel_after, 4),
         "post_cal_mag_mean_uT":   round(mag_after, 2),
     }
-    out_json.write_text(json.dumps(calib_meta, indent=2))
+    out_json.write_text(json.dumps(calib_meta, indent=2), encoding="utf-8")
 
     print(f"  Post-cal |a| = {accel_after:.4f} g  (target 1.0000)")
     print(f"  Post-cal |B| = {mag_after:.2f} μT")

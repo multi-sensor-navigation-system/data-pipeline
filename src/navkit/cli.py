@@ -261,7 +261,17 @@ COMMANDS = {
 }
 
 
+def _utf8_console() -> None:
+    """Output uses ✓, μ and box-drawing characters; legacy Windows code pages cannot encode them."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_console()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.command:

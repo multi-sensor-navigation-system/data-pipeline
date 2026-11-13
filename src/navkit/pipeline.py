@@ -170,7 +170,7 @@ def write_metadata(session_dir: Path, session_type: str, steps_run: list[str],
         meta["gyro_bias"]   = calib_json.get("gyro_bias")
         meta["accel_scale"] = calib_json.get("accel_scale")
 
-    (session_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
+    (session_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print("\n  ✓ metadata.json written")
     return meta
 
@@ -224,7 +224,7 @@ def write_summary(ws: Workspace, session_dir: Path, meta: dict,
     ]
 
     out = rep_dir / f"{session_dir.name}_summary.md"
-    out.write_text("\n".join(lines))
+    out.write_text("\n".join(lines), encoding="utf-8")
     print(f"\n  ✓ session summary → {out}")
 
 
@@ -245,7 +245,7 @@ def _latest_v(folder: Path, prefix: str) -> int:
 
 def _load_json_safe(path: Path) -> dict | None:
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
 

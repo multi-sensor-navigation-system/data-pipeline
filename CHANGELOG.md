@@ -18,6 +18,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   sessions, outputs and calibration parameters, so the tool no longer has
   to run from a source checkout.
 
+### Fixed
+- On Windows, writing the session summary failed because of the `μ` in it;
+  all files are now written as UTF-8.
+
 ### Changed
 - Modules moved from `pipeline/` to `src/navkit/`; `session_trimmer.py` is
   now `trimmer.py`.

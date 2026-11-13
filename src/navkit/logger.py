@@ -136,10 +136,10 @@ def log_session(out_path: Path, port: str | None = None, timeout: int = 30) -> i
                         if decoder.mode == "binary":
                             print(f"  Firmware : {info.get('fw', '?')} ({info.get('git', '?')}) "
                                   f"on {info.get('board', '?')}, sensors: {info.get('sensors', '?')}")
-                            out_path.with_name("firmware.json").write_text(json.dumps(info, indent=2))
+                            out_path.with_name("firmware.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
                         else:
                             print("  Firmware : CSV debug build")
-                        csv_file   = open(out_path, "w", newline="", buffering=1)   # noqa: SIM115
+                        csv_file   = open(out_path, "w", newline="", buffering=1, encoding="utf-8")   # noqa: SIM115
                         csv_writer = csv.DictWriter(csv_file, fieldnames=decoder.header,
                                                     extrasaction="ignore")
                         csv_writer.writeheader()

@@ -276,7 +276,7 @@ def run(session_dir: Path, version: int | None = None) -> Path:
         },
     }
     json_path = diag_dir / f"timing_v{v}.json"
-    json_path.write_text(json.dumps(timing_json, indent=2))
+    json_path.write_text(json.dumps(timing_json, indent=2), encoding="utf-8")
     print(f"  ✓ timing    → {json_path.name}")
 
     return json_path

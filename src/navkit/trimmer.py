@@ -101,7 +101,7 @@ def run(session_dir: Path) -> Path:
             "files": {"signal": signal_path.name, "noise": noise_path.name}
         }
         meta_path = clean_dir / f"cleaning_v{v}.json"
-        meta_path.write_text(json.dumps(meta, indent=2))
+        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
         return signal_path
 
     # Detect reboot boundaries
@@ -172,7 +172,7 @@ def run(session_dir: Path) -> Path:
         },
     }
     meta_path = clean_dir / f"cleaning_v{v}.json"
-    meta_path.write_text(json.dumps(meta, indent=2))
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     print(f"  ✓ signal → {signal_path.name}  ({quals[signal_idx]['rows']:,} rows)")
     print(f"  ✓ noise  → {noise_path.name}")
