@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-split_sessions.py  —  Segment a raw session CSV into signal and noise files.
+session_trimmer.py  —  Segment a raw session CSV into signal and noise files.
 
 Detects ESP32 reboot boundaries (backward jumps in t_imu_us > 0.5 s),
 removes serial framing errors, and writes versioned outputs.
 
 Called by run_pipeline.py or standalone:
-    python pipeline/split_sessions.py <session_dir>
+    python pipeline/session_trimmer.py <session_dir>
 
 Inputs:
     data/<session>/raw/raw.csv
@@ -81,14 +81,14 @@ def run(session_dir: Path) -> Path:
     clean_dir = session_dir / "clean"
     clean_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n── Split sessions ──────────────────────────────────")
+    print("\n── Split sessions ──────────────────────────────────")
     print(f"  Input : {raw_path}")
 
     df = load_raw(raw_path)
     df, framing_removed = remove_framing_errors(df)
 
     if len(df) == 0:
-        print(f"  ⚠ No data rows found in raw.csv. Creating empty output files.")
+        print("  ⚠ No data rows found in raw.csv. Creating empty output files.")
         v = next_version(clean_dir, "signal")
         signal_path = clean_dir / f"signal_v{v}.csv"
         noise_path  = clean_dir / f"noise_v{v}.csv"
@@ -183,6 +183,6 @@ def run(session_dir: Path) -> Path:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python pipeline/split_sessions.py data/<session>")
+        print("Usage: python pipeline/session_trimmer.py data/<session>")
         sys.exit(1)
     run(Path(sys.argv[1]))

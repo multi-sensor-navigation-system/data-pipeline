@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-timing_analysis.py  —  Timing integrity validation for a clean session.
+diagnostics.py  —  Timing integrity validation for a clean session.
 
 Analyses:
   - Jitter histogram per sensor  (dt distribution, mean vs variance)
@@ -10,7 +10,7 @@ Analyses:
   - Clock drift                  (MCU timer drift relative to GPS time)
 
 Called by run_pipeline.py or standalone:
-    python pipeline/timing_analysis.py <session_dir> [--version N]
+    python pipeline/diagnostics.py <session_dir> [--version N]
 
 Inputs:
     data/<session>/clean/signal_v<i>.csv
@@ -23,7 +23,6 @@ Outputs:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -187,7 +186,6 @@ def plot_alignment(df: pd.DataFrame, wall_s: pd.Series, out_path: Path):
     ax1 = fig.add_subplot(gs[1], sharex=ax0)
     baro_change = df["pressure_hPa"].diff().abs() > 1e-4
     baro_t = wall_s[baro_change]
-    baro_dt = baro_t.diff().dt.total_seconds() * 1000 if hasattr(baro_t, 'dt') else baro_t.diff() * 1000
     ax1.scatter(baro_t.values, (df.loc[baro_change, "t_imu_us"].diff() / 1000.0).values,
                 s=1, color=SENSOR_COLORS["baro"], alpha=0.5)
     ax1.axhline(1000.0 / EXPECTED_HZ["baro"], color="red", lw=0.8, ls="--", alpha=0.6, label="expected")
@@ -228,7 +226,7 @@ def run(session_dir: Path, version: int | None = None) -> Path:
         sig_path = clean_dir / f"signal_v{version}.csv"
         v = version
 
-    print(f"\n── Timing analysis ─────────────────────────────────")
+    print("\n── Timing analysis ─────────────────────────────────")
     print(f"  Input : {sig_path.name}")
 
     df      = load_signal(sig_path)

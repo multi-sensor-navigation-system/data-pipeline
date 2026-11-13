@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-sanity_check.py  —  Validation and plotting for any session CSV.
+plotter.py  —  Validation and plotting for any session CSV.
 
 Handles multi-boot sessions, mixed-type columns, and outlier-compressed axes.
 Saves plots to outputs/plots/<session>/ when called from run_pipeline.py.
 
 Usage (standalone):
-    python pipeline/sanity_check.py data/<session>/raw/raw.csv --plot
-    python pipeline/sanity_check.py data/<session>/clean/signal_v1.csv --plot
-    python pipeline/sanity_check.py data/<session>/calibrated/calibrated_v1.csv --plot
+    python pipeline/plotter.py data/<session>/raw/raw.csv --plot
+    python pipeline/plotter.py data/<session>/clean/signal_v1.csv --plot
+    python pipeline/plotter.py data/<session>/calibrated/calibrated_v1.csv --plot
 
 Called by run_pipeline.py via:
-    sanity_check.run(csv_path, out_png)
+    plotter.run(csv_path, out_png)
 """
 
 import argparse
@@ -70,7 +70,7 @@ def print_stats(df: pd.DataFrame, t: pd.Series, path: Path):
     dt_us = df["t_imu_us"].diff()
     dt_clean = dt_us[(dt_us > 0) & (dt_us < 100_000)]
     jitter = df["jitter_us"][df["jitter_us"] < 1e9]
-    print(f"\n── IMU Timing ──────────────────────────────────────")
+    print("\n── IMU Timing ──────────────────────────────────────")
     print(f"  Mean period : {dt_clean.mean():.1f} μs")
     print(f"  Std dev     : {dt_clean.std():.1f} μs")
     print(f"  p5  / p95   : {dt_clean.quantile(0.05):.0f} / {dt_clean.quantile(0.95):.0f} μs")
@@ -78,13 +78,13 @@ def print_stats(df: pd.DataFrame, t: pd.Series, path: Path):
     print(f"  jitter p99  : {jitter.quantile(0.99):.0f} μs")
 
     faults = decode_faults(df["fault_flag"])
-    print(f"\n── Fault Flags ─────────────────────────────────────")
+    print("\n── Fault Flags ─────────────────────────────────────")
     for col in faults.columns:
         pct = faults[col].mean() * 100
         print(f"  {'✓' if pct < 1 else '⚠'} {col:<20}: {faults[col].sum():>6,}  ({pct:.2f}%)")
 
     accel = np.sqrt(df.ax_g**2 + df.ay_g**2 + df.az_g**2)
-    print(f"\n── IMU ─────────────────────────────────────────────")
+    print("\n── IMU ─────────────────────────────────────────────")
     print(f"  |accel| mean/std : {accel.mean():.4f} / {accel.std():.4f} g")
     for col in ["ax_g", "ay_g", "az_g"]:
         print(f"  {col:<8} mean/std : {df[col].mean():.5f} / {df[col].std():.5f} g")
@@ -92,16 +92,16 @@ def print_stats(df: pd.DataFrame, t: pd.Series, path: Path):
         print(f"  {col:<8} mean/std : {df[col].mean():.4f} / {df[col].std():.4f} °/s")
 
     baro = df[df.pressure_hPa > 0]
-    print(f"\n── Barometer ───────────────────────────────────────")
+    print("\n── Barometer ───────────────────────────────────────")
     print(f"  Pressure : {baro.pressure_hPa.mean():.4f} ± {baro.pressure_hPa.std():.5f} hPa")
     print(f"  Temp     : {baro.bmp_temp_C.mean():.3f} ± {baro.bmp_temp_C.std():.4f} °C")
 
     mag = np.sqrt(df.mx_uT**2 + df.my_uT**2 + df.mz_uT**2)
-    print(f"\n── Magnetometer ────────────────────────────────────")
+    print("\n── Magnetometer ────────────────────────────────────")
     print(f"  |B| mean/std : {mag.mean():.2f} / {mag.std():.3f} μT")
 
     gps_good = df[df.hdop < 2.5]
-    print(f"\n── GPS ─────────────────────────────────────────────")
+    print("\n── GPS ─────────────────────────────────────────────")
     print(f"  HDOP <2.5 : {len(gps_good):,} / {len(df):,} ({len(gps_good)/len(df)*100:.1f}%)")
     if len(gps_good):
         print(f"  HDOP mean : {gps_good.hdop.mean():.2f}   sats : {gps_good.satellites.mean():.1f}")

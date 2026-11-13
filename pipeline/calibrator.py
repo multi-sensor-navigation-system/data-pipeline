@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-data_cleanup.py  —  Sensor calibration and derived signal computation.
+calibrator.py  —  Sensor calibration and derived signal computation.
 
 TWO MODES:
 
@@ -11,8 +11,8 @@ TWO MODES:
                     derived columns. Saves calibrated_vi.csv + calibration_vi.json.
 
 Called by run_pipeline.py or standalone:
-    python pipeline/data_cleanup.py --compute-params data/static_calib_session
-    python pipeline/data_cleanup.py --apply data/mag_rot_session --params calibration_params.json
+    python pipeline/calibrator.py --compute-params data/static_calib_session
+    python pipeline/calibrator.py --apply data/mag_rot_session --params calibration_params.json
 
 Calibration steps applied:
   1. Gyroscope bias subtraction    (from static session mean per axis)
@@ -26,7 +26,6 @@ Derived columns:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -116,7 +115,7 @@ def sphere_fit_mag(mx: np.ndarray, my: np.ndarray, mz: np.ndarray) -> tuple[list
     r_fit = round(float(r), 4)
     if r_fit < 10.0:
         print(f"  ⚠ mag sphere fit radius={r_fit:.2f} μT — degenerate fit from static data")
-        print(f"    Offsets will be stored but NOT applied until a mag_rotation session is run.")
+        print("    Offsets will be stored but NOT applied until a mag_rotation session is run.")
     return [round(float(ox), 4), round(float(oy), 4), round(float(oz), 4)], r_fit
 
 
@@ -181,7 +180,7 @@ def apply_calibration(df: pd.DataFrame, params: dict) -> pd.DataFrame:
 # ── compute params mode ────────────────────────────────────────────────────────
 def compute_params(session_dir: Path, params_path: Path, user_note: str = ""):
     sig_path = latest_signal(session_dir)
-    print(f"\n── Compute calibration params ──────────────────────")
+    print("\n── Compute calibration params ──────────────────────")
     print(f"  Source : {sig_path}")
 
     df = load_signal(sig_path)
@@ -206,7 +205,7 @@ def compute_params(session_dir: Path, params_path: Path, user_note: str = ""):
     # Quality check for "dry runs" (no sensors connected)
     measured_g = float(np.sqrt(df.ax_g**2 + df.ay_g**2 + df.az_g**2).mean())
     calib_valid = bool(measured_g > 0 and mag_radius > 0)
-    
+
     if not calib_valid:
         print("\n\033[91m  ⚠ Calibration invalid — insufficient sensor signal (all zeros detected)\033[0m")
 
@@ -243,18 +242,18 @@ def compute_params(session_dir: Path, params_path: Path, user_note: str = ""):
     if gps_ref_alt:
         print(f"  GPS ref alt   : {gps_ref_alt:.1f} m  (absolute anchor for baro altitude)")
     else:
-        print(f"  GPS ref alt   : not available — alt_baro_m will be relative")
+        print("  GPS ref alt   : not available — alt_baro_m will be relative")
 
     # SUSPICIOUS BIAS WARNINGS
     warnings = []
     if any(abs(gb) > 50.0 for gb in gyro_bias):
         warnings.append("⚠ Gyro bias is > 50 °/s. This is suspiciously high! Was the sensor moving?")
-    
+
     # Calculate |a| for raw accel
     measured_g = float(np.sqrt(df.ax_g**2 + df.ay_g**2 + df.az_g**2).mean())
     if not (0.90 <= measured_g <= 1.10):
         warnings.append(f"⚠ Raw |accel| mean is {measured_g:.3f} g. This is far from 1.0 g!")
-        
+
     if mag_radius > 10.0 and not (20.0 <= mag_radius <= 70.0):
         warnings.append(f"⚠ Mag radius is {mag_radius:.1f} μT. Expected Earth's field (20-70 μT)!")
 
@@ -274,7 +273,7 @@ def apply_params(session_dir: Path, params_path: Path):
     calib_dir = session_dir / "calibrated"
     calib_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n── Apply calibration ───────────────────────────────")
+    print("\n── Apply calibration ───────────────────────────────")
     print(f"  Input  : {sig_path.name}")
     print(f"  Params : {params_path.name}")
 

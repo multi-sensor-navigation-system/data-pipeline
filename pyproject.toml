@@ -1,0 +1,21 @@
+# Tooling configuration only. Packaging metadata arrives with the navkit
+# restructure; until then the pipeline runs from a source checkout.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",  # long lines: the aligned print/format blocks are intentional
+    "E701",  # one-line guard clauses
+    "E702",
+    "E221",
+    "E241",
+    "B905",  # zip(strict=) — lengths are checked explicitly where it matters
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "pipeline"]

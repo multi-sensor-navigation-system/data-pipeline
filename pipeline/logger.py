@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-nav_logger.py — Serial → CSV logger for the ESP32 nav-stack firmware.
+logger.py — Serial → CSV logger for the ESP32 nav-stack firmware.
 
 Usage:
-    python nav_logger.py                        # auto-detect port
-    python nav_logger.py --port COM3            # Windows
-    python nav_logger.py --port /dev/ttyUSB0   # Linux
-    python nav_logger.py --port /dev/cu.usbserial-0001  # macOS
+    python pipeline/logger.py                        # auto-detect port
+    python pipeline/logger.py --port COM3            # Windows
+    python pipeline/logger.py --port /dev/ttyUSB0    # Linux
+    python pipeline/logger.py --port /dev/cu.usbserial-0001  # macOS
 
 Output:
     logs/session_YYYYMMDD_HHMMSS.csv
-    
+
     A new file is created each run. The CSV header is taken from the
     firmware's first non-comment line, so column names stay in sync
     automatically.
@@ -18,7 +18,6 @@ Output:
 
 import argparse
 import csv
-import os
 import sys
 import time
 from datetime import datetime
@@ -92,32 +91,24 @@ def preview(row: dict, row_count: int, t_start: float):
     )
 
 
-# ── MAIN ──────────────────────────────────────────────
-def main():
-    parser = argparse.ArgumentParser(description="ESP32 nav-stack CSV logger")
-    parser.add_argument("--port",    default=None, help="Serial port")
-    parser.add_argument("--output",  default=None, help="Override output CSV path")
-    parser.add_argument("--timeout", default=30, type=int,
-                        help="Seconds to wait for first data (default 30)")
-    args = parser.parse_args()
+# ── LOGGING ───────────────────────────────────────────
+def log_session(out_path: Path, port: str | None = None, timeout: int = 30) -> int:
+    """Log the firmware CSV stream to ``out_path`` until Ctrl-C.
 
-    port = args.port or find_esp32_port()
+    Returns the number of rows written. Called by run_pipeline.py and by
+    the standalone CLI below.
+    """
+    port = port or find_esp32_port()
     if port is None:
         print("ERROR: Could not auto-detect ESP32 port. Pass --port explicitly.")
         sys.exit(1)
 
-    session_ts  = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        LOG_DIR.mkdir(exist_ok=True)
-        out_path = LOG_DIR / f"session_{session_ts}.csv"
-    
+    out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"  Port     : {port} @ {BAUD} baud")
     print(f"  Output   : {out_path}")
-    print(f"  Press Ctrl-C to stop logging.\n")
+    print("  Press Ctrl-C to stop logging.\n")
 
     rows_written = 0
     csv_writer   = None
@@ -126,7 +117,7 @@ def main():
 
     try:
         with serial.Serial(port, BAUD, timeout=TIMEOUT_S) as ser:
-            print(f"  Opened serial port. Waiting for firmware header…")
+            print("  Opened serial port. Waiting for firmware header…")
 
             # Pulse DTR to reset the ESP32 so it reprints the header.
             # Without this, if the ESP32 booted before we connected we miss
@@ -138,7 +129,7 @@ def main():
 
             # Wait for header line (first non-comment line from firmware)
             header_cols = None
-            deadline = time.time() + args.timeout
+            deadline = time.time() + timeout
             while time.time() < deadline:
                 raw = ser.readline()
                 if not raw:
@@ -190,7 +181,7 @@ def main():
                     preview(row, rows_written, t_start)
 
     except KeyboardInterrupt:
-        print(f"\n\n  Stopped by user.")
+        print("\n\n  Stopped by user.")
     except serial.SerialException as e:
         print(f"\n  Serial error: {e}")
     finally:
@@ -203,12 +194,25 @@ def main():
     print(f"  Avg rate     : {rows_written/elapsed:.1f} Hz" if elapsed > 0 else "")
     print(f"  File         : {out_path}")
     print(f"  File size    : {out_path.stat().st_size / 1024:.1f} KB" if rows_written > 0 else "")
+    return rows_written
 
 
-def main_with_path(raw_path: Path):
-    """Entry point called by run_pipeline.py — logs directly to a given path."""
-    sys.argv = ["nav_logger.py", "--output", str(raw_path)]
-    main()
+# ── CLI ───────────────────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(description="ESP32 nav-stack CSV logger")
+    parser.add_argument("--port",    default=None, help="Serial port")
+    parser.add_argument("--output",  default=None, help="Override output CSV path")
+    parser.add_argument("--timeout", default=30, type=int,
+                        help="Seconds to wait for first data (default 30)")
+    args = parser.parse_args()
+
+    if args.output:
+        out_path = Path(args.output)
+    else:
+        session_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = LOG_DIR / f"session_{session_ts}.csv"
+
+    log_session(out_path, port=args.port, timeout=args.timeout)
 
 
 if __name__ == "__main__":
