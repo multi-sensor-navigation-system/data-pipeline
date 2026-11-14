@@ -132,10 +132,14 @@ def write_metadata(session_dir: Path, session_type: str, steps_run: list[str],
     else:
         detected = list(sensor_map.values())
 
+    # Identity reported by the firmware itself (binary builds only).
+    firmware = _load_json_safe(session_dir / "raw" / "firmware.json")
+
     meta.update({
         "created_at":    datetime.now().isoformat(timespec="seconds"),
         "user_note":     user_note,
         "platform":      "ESP32 nav-stack v1",
+        "firmware":      firmware,
         "sensors":       detected,
         "steps_run":     steps_run,
         "files": {
