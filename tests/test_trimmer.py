@@ -2,7 +2,7 @@ import json
 
 import pandas as pd
 
-import session_trimmer
+from navkit import trimmer as session_trimmer
 from conftest import COLUMNS, make_session
 
 
