@@ -9,8 +9,8 @@ Analyses:
   - Missing / duplicate samples  (gaps > 3×expected, duplicate t_imu_us)
   - Clock drift                  (MCU timer drift relative to GPS time)
 
-Called by run_pipeline.py or standalone:
-    python pipeline/diagnostics.py <session_dir> [--version N]
+Called by navkit.pipeline or standalone:
+    python -m navkit.diagnostics <session_dir> [--version N]
 
 Inputs:
     data/<session>/clean/signal_v<i>.csv
@@ -276,7 +276,7 @@ def run(session_dir: Path, version: int | None = None) -> Path:
         },
     }
     json_path = diag_dir / f"timing_v{v}.json"
-    json_path.write_text(json.dumps(timing_json, indent=2))
+    json_path.write_text(json.dumps(timing_json, indent=2), encoding="utf-8")
     print(f"  ✓ timing    → {json_path.name}")
 
     return json_path
