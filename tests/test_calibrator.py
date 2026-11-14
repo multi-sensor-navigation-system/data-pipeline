@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from navkit import calibrator
-from navkit import trimmer as session_trimmer
+import calibrator
+import session_trimmer
 from conftest import GYRO_BIAS, make_session
 
 

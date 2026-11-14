@@ -24,7 +24,7 @@ The pipeline follows a deterministic multi-stage flow:
 | Stage | Module | Responsibility | Output |
 |---|---|---|---|
 | **1. Log** | `logger.py` + `wire.py` | Binary frames (or CSV debug stream) → CSV | `raw/raw.csv`, `raw/firmware.json` |
-| **2. Trim** | `trimmer.py` | Signal/Noise segmentation | `clean/signal_v1.csv` |
+| **2. Trim** | `session_trimmer.py` | Signal/Noise segmentation | `clean/signal_v1.csv` |
 | **3. Diagnose** | `diagnostics.py` | Timing, jitter & alignment | `diagnostics/timing_v1.json` |
 | **4. Calibrate** | `calibrator.py` | Bias, scale & hard-iron | `calibrated/calibrated_v1.csv` |
 | **5. Plot** | `plotter.py` | Visual validation | `outputs/plots/*.png` |
@@ -40,7 +40,7 @@ graph LR
 
     subgraph Pipeline["<b>Repo 2: Data Pipeline</b>"]
         LOG["logger.py<br/>Serial Listener"] --> RAW[/"raw.csv"/]
-        RAW --> TRIM["trimmer.py<br/>Signal Trimmer"]
+        RAW --> TRIM["session_trimmer.py<br/>Signal Trimmer"]
         
         TRIM --> CLN[/"signal_v1.csv"/]
 
@@ -184,112 +184,62 @@ Each session is categorized as:
 
 ---
 
-## Install
-
-`navkit` is the Python package in this repo; it installs the `nav` command.
-
-```bash
-# Flash and log only (small: pyserial + esptool)
-pip install "navkit @ git+https://github.com/multi-sensor-navigation-system/data-pipeline"
-
-# Everything, including trim / diagnose / calibrate / plot
-pip install "navkit[pipeline] @ git+https://github.com/multi-sensor-navigation-system/data-pipeline"
-```
-
-From a checkout, for development:
-
-```bash
-python -m venv .nav && source .nav/bin/activate
-pip install -e ".[dev]"
-pytest
-```
-
-Requires Python 3.10+.
-
----
-
-## Quick start
-
-```bash
-nav doctor                      # is this machine ready? is a board connected?
-nav flash                       # detect the board, download the latest firmware, verify, flash
-nav record --type static_calib --note "flat on desk"     # log (Ctrl-C to stop), then process
-nav record --type free_label --note "bike ride"
-nav sessions
-```
-
-`nav wizard` walks through the same steps as an interactive menu.
-
----
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `nav doctor [--online]` | Checks Python, serial access, drivers, the workspace and (with `--online`) firmware releases |
-| `nav ports` | Lists serial ports that look like a board |
-| `nav flash [--board ID] [--version TAG] [--port P]` | Downloads a firmware release, verifies its SHA-256 and flashes it. `--board auto` (default) detects the chip. `--file image.bin` flashes a local build |
-| `nav firmware list` / `nav firmware fetch` | Lists releases and their boards / downloads an image without flashing |
-| `nav record --type T [--note N]` | Logs a new session from the board, then runs the whole pipeline on it |
-| `nav process SESSION [--from STEP]` | Runs the pipeline on an existing session, from `trim`, `diagnose`, `calibrate` or `plot` |
-| `nav calibrate SESSION` | Computes calibration parameters from a static session |
-| `nav sessions` | Lists sessions with type, duration and validity |
-| `nav log [-o FILE]` | Logs the serial stream to one CSV file and does nothing else |
-| `nav wizard` | Interactive menu |
-| `nav where` | Shows where sessions, outputs and cached firmware live |
-
-Session types: `static_calib`, `accel_6pos`, `mag_rotation`, `free_label`.
-
-When a dynamic session has no calibration parameters, `record` and `process` ask what to do. Decide up front with `--strict` (abort), `--allow-uncalibrated` (continue; the session is flagged `valid_for_analysis: false`) or `--calib-path FILE`. A custom path wins over the other two. Without a terminal attached the default is strict.
-
-`python run_pipeline.py` still works from a checkout and uses the checkout itself as the workspace.
-
----
-
-## Workspace
-
-Sessions, plots and calibration parameters live in one directory, the workspace:
-
-```
-~/navkit/
-├── data/<session>/
-│   ├── raw/            raw.csv, firmware.json
-│   ├── clean/          signal_v*.csv, noise_v*.csv, cleaning_v*.json
-│   ├── diagnostics/    timing_v*.json, jitter_v*.png, alignment_v*.png
-│   ├── calibrated/     calibrated_v*.csv, calibration_v*.json
-│   └── metadata.json
-├── outputs/
-│   ├── plots/<session>/
-│   └── reports/
-└── calibration_params.json
-```
-
-It defaults to `~/navkit`. Change it with `nav --workspace DIR …` or the `NAVKIT_HOME` environment variable. Downloaded firmware is cached separately in the per-user cache directory (`nav where` prints both).
-
----
-
 ## Repo-02 Structure
 ```
 data-pipeline/
-├── src/navkit/
-│   ├── cli.py               # The `nav` command
-│   ├── pipeline.py          # Orchestration, calibration gate, metadata, wizard
+├── data/                    # Raw and processed session data
+├── outputs/
+│   ├── plots/               # Visual validation plots
+│   └── reports/             # Markdown session summaries
+├── pipeline/
 │   ├── logger.py            # High-speed UART listener
 │   ├── wire.py              # Wire protocol v1 decoder (binary + CSV detection)
-│   ├── trimmer.py           # Signal/Noise segmenter
+│   ├── session_trimmer.py   # Signal/Noise segmenter
 │   ├── diagnostics.py       # Timing & jitter analysis
 │   ├── calibrator.py        # Bias, scale & hard-iron calibration
-│   ├── plotter.py           # Multi-stage signal visualisation
-│   ├── firmware.py          # Firmware releases: resolve, download, verify, cache
-│   ├── flash.py             # esptool wrapper, chip detection
-│   ├── doctor.py            # Environment checks
-│   ├── ports.py             # Serial port discovery
-│   └── workspace.py         # Where sessions and outputs live
-├── tests/                   # pytest suite on synthetic sessions and a golden wire stream
-├── run_pipeline.py          # Backwards-compatible entry point (wizard)
-├── pyproject.toml           # Package metadata and tooling
-└── README.md
+│   └── plotter.py           # Multi-stage signal visualisation
+├── run_pipeline.py          # Unified CLI entry point
+└── README.md                # Technical documentation
 ```
+---
+
+## Setup
+
+1. **Environment:** Create a virtualenv and install dependencies:
+   ```bash
+   python -m venv .nav
+   source .nav/bin/activate
+   pip install -r requirements.txt
+   ```
+2. **Hardware:** Connect the ESP32 via USB and identify the port (e.g., `/dev/cu.usbserial-0001`).
+3. **Run:** Execute the pipeline and follow the prompts.
+
+---
+
+## Automation & CLI
+
+The pipeline can be run interactively or fully automated via command-line arguments.
+
+```bash
+# Interactive mode (default)
+python run_pipeline.py
+
+# Automated mode (Action 2 = Run on existing, Action 3 = Re-run from step)
+python run_pipeline.py --action 2 --session-dir data/session_XYZ --calib-mode 0
+```
+### Key CLI Arguments
+| Argument | Options | Description |
+|---|---|---|
+| `--action` | `1-5` | Choose log, process, re-run, calibrate or list |
+| `--session-type` | `static_calib`, `free_label`, etc | Set the session intent |
+| `--session-dir` | session_id | Target session for processing |
+| `--start-from` | `trim`, `diagnose`, `calibrate`, etc | Entry point for re-runs |
+| `--calib-mode` | `0` (Strict), `1` (Permissive) | Handling of missing params |
+| `--calib-path` | path/to/params.json | Custom path for calibration params |
+
+*If --calib-path is provided, it overrides --calib-mode.*
+
+For complete list, use `python run_pipeline.py --help`
 
 ---
 

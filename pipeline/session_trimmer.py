@@ -5,8 +5,8 @@ session_trimmer.py  —  Segment a raw session CSV into signal and noise files.
 Detects ESP32 reboot boundaries (backward jumps in t_imu_us > 0.5 s),
 removes serial framing errors, and writes versioned outputs.
 
-Called by navkit.pipeline or standalone:
-    python -m navkit.trimmer <session_dir>
+Called by run_pipeline.py or standalone:
+    python pipeline/session_trimmer.py <session_dir>
 
 Inputs:
     data/<session>/raw/raw.csv
@@ -101,7 +101,7 @@ def run(session_dir: Path) -> Path:
             "files": {"signal": signal_path.name, "noise": noise_path.name}
         }
         meta_path = clean_dir / f"cleaning_v{v}.json"
-        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        meta_path.write_text(json.dumps(meta, indent=2))
         return signal_path
 
     # Detect reboot boundaries
@@ -172,7 +172,7 @@ def run(session_dir: Path) -> Path:
         },
     }
     meta_path = clean_dir / f"cleaning_v{v}.json"
-    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    meta_path.write_text(json.dumps(meta, indent=2))
 
     print(f"  ✓ signal → {signal_path.name}  ({quals[signal_idx]['rows']:,} rows)")
     print(f"  ✓ noise  → {noise_path.name}")
@@ -183,6 +183,6 @@ def run(session_dir: Path) -> Path:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m navkit.trimmer data/<session>")
+        print("Usage: python pipeline/session_trimmer.py data/<session>")
         sys.exit(1)
     run(Path(sys.argv[1]))

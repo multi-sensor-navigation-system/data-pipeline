@@ -3,14 +3,14 @@
 plotter.py  —  Validation and plotting for any session CSV.
 
 Handles multi-boot sessions, mixed-type columns, and outlier-compressed axes.
-Saves plots to outputs/plots/<session>/ when called from navkit.pipeline.
+Saves plots to outputs/plots/<session>/ when called from run_pipeline.py.
 
 Usage (standalone):
-    python -m navkit.plotter data/<session>/raw/raw.csv --plot
-    python -m navkit.plotter data/<session>/clean/signal_v1.csv --plot
-    python -m navkit.plotter data/<session>/calibrated/calibrated_v1.csv --plot
+    python pipeline/plotter.py data/<session>/raw/raw.csv --plot
+    python pipeline/plotter.py data/<session>/clean/signal_v1.csv --plot
+    python pipeline/plotter.py data/<session>/calibrated/calibrated_v1.csv --plot
 
-Called by navkit.pipeline via:
+Called by run_pipeline.py via:
     plotter.run(csv_path, out_png)
 """
 

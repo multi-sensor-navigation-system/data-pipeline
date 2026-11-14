@@ -6,32 +6,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **`navkit` package and the `nav` command.** The pipeline is now an
-  installable Python package (`pip install navkit`, `navkit[pipeline]` for
-  the analysis stages) with subcommands: `flash`, `firmware`, `ports`,
-  `doctor`, `record`, `process`, `calibrate`, `sessions`, `log`, `wizard`,
-  `where`.
-- `nav flash`: detects the chip, downloads the matching firmware release,
-  verifies its SHA-256 and flashes it with esptool. Images are cached.
-- `nav doctor`: checks Python, serial access, drivers and the workspace.
-- A workspace directory (`~/navkit`, `--workspace`, or `NAVKIT_HOME`) holds
-  sessions, outputs and calibration parameters, so the tool no longer has
-  to run from a source checkout.
-
-### Fixed
-- On Windows, writing the session summary failed because of the `μ` in it;
-  all files are now written as UTF-8.
-
-### Changed
-- Modules moved from `pipeline/` to `src/navkit/`; `session_trimmer.py` is
-  now `trimmer.py`.
-- Flashing and logging no longer import pandas, scipy or matplotlib.
-- Without a terminal attached, a missing calibration file aborts the run
-  (strict) instead of waiting for input.
-- `run_pipeline.py` is a thin wrapper around the wizard and keeps using the
-  checkout as its workspace.
-
-### Added
 - `pipeline/wire.py`: decoder for the firmware's binary wire protocol v1
   (COBS framing, CRC-16), tested against a golden stream produced by the
   firmware's own encoder.

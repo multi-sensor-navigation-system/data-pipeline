@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from navkit import wire
+import wire
 from conftest import COLUMNS
 
 GOLDEN = (Path(__file__).parent / "fixtures" / "wire_golden_v1.bin").read_bytes()

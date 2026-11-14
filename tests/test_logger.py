@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from navkit import logger
+import logger
 from conftest import COLUMNS, make_session
 
 
@@ -108,7 +108,7 @@ def test_binary_rows_before_the_hello_are_not_written(tmp_path, fake_port):
 def test_unsupported_protocol_version_is_refused(tmp_path, fake_port):
     import struct
 
-    from navkit import wire
+    import wire
     raw = bytes([wire.HELLO, 99]) + b"board=x"
     raw += struct.pack("<H", wire.crc16(raw))
     assert 0 not in raw

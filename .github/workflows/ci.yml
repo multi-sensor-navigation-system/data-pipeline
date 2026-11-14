@@ -38,28 +38,5 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev]"
+      - run: pip install -r requirements-dev.txt
       - run: pytest -q
-
-  package:
-    # Build the distributions and prove that a core-only install (no pandas,
-    # scipy or matplotlib) can still run the flashing and logging commands.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install build
-      - run: python -m build
-      - name: Core-only install
-        run: |
-          python -m venv /tmp/core
-          /tmp/core/bin/pip install dist/*.whl
-          /tmp/core/bin/nav --version
-          /tmp/core/bin/nav --workspace /tmp/ws doctor
-          /tmp/core/bin/python -c "import sys, navkit.cli, navkit.flash, navkit.firmware, navkit.logger; assert not {'pandas','scipy','matplotlib'} & set(sys.modules)"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
