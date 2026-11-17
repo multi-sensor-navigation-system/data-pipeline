@@ -20,7 +20,23 @@ from dataclasses import dataclass, field
 
 PROTO_VERSION = 1
 
-HELLO, SAMPLE, STATUS, LOG = 0x01, 0x02, 0x03, 0x04
+HELLO, SAMPLE, STATUS, LOG, ACK = 0x01, 0x02, 0x03, 0x04, 0x05
+# Host → device commands.
+SET_PINS, RESET_PINS = 0x10, 0x11
+
+# Order of the signals in SET_PINS, in the HELLO `pins` key and in ACK.signal.
+PIN_SIGNALS = ("sda", "scl", "gps_rx", "gps_tx")
+
+# ACK.status, as sentences a user can act on.
+ACK_STATUS = {
+    0: "done",
+    1: "the device rejected the command as malformed",
+    2: "is not available on this board (it does not exist, or is blocked or reserved)",
+    3: "is input-only and this signal must be driven",
+    4: "is already used by another signal",
+    5: "the device could not store the setting",
+    6: "this firmware does not know the command",
+}
 
 # Column order of the CSV the pipeline works on (identical to the CSV firmware build).
 CSV_COLUMNS = [
@@ -67,6 +83,40 @@ def cobs_decode(data: bytes) -> bytes:
     return bytes(out)
 
 
+def cobs_encode(data: bytes) -> bytes:
+    out = bytearray()
+    block = bytearray()
+    for byte in data:
+        if byte == 0:
+            out.append(len(block) + 1)
+            out += block
+            block.clear()
+        else:
+            block.append(byte)
+            if len(block) == 254:
+                out.append(0xFF)
+                out += block
+                block.clear()
+    out.append(len(block) + 1)
+    out += block
+    return bytes(out)
+
+
+def encode_frame(ftype: int, body: bytes = b"") -> bytes:
+    """One complete frame, delimiter included."""
+    raw = bytes([ftype]) + body
+    return cobs_encode(raw + struct.pack("<H", crc16(raw))) + b"\x00"
+
+
+def set_pins_frame(pins: dict) -> bytes:
+    """SET_PINS for {"sda": gpio, "scl": gpio, "gps_rx": gpio, "gps_tx": gpio}."""
+    return encode_frame(SET_PINS, bytes(pins[s] for s in PIN_SIGNALS))
+
+
+def reset_pins_frame() -> bytes:
+    return encode_frame(RESET_PINS)
+
+
 def decode_frame(frame: bytes) -> tuple[int, bytes]:
     """Decode one frame (without its 0x00 delimiter) into (type, body)."""
     raw = cobs_decode(frame)
@@ -88,6 +138,26 @@ def parse_hello(body: bytes) -> dict:
         if sep:
             info[key] = value
     return info
+
+
+def hello_pins(info: dict) -> dict | None:
+    """The pins a HELLO reports, or None for firmware that predates pin settings."""
+    try:
+        values = [int(v) for v in info["pins"].split(",")]
+    except (KeyError, ValueError):
+        return None
+    if len(values) != len(PIN_SIGNALS):
+        return None
+    return dict(zip(PIN_SIGNALS, values))
+
+
+def parse_ack(body: bytes) -> dict:
+    """ACK body → {"cmd": int, "status": int, "signal": name or None}."""
+    if len(body) != 3:
+        raise FrameError("bad ACK body")
+    cmd, status, signal = body
+    return {"cmd": cmd, "status": status,
+            "signal": PIN_SIGNALS[signal] if signal < len(PIN_SIGNALS) else None}
 
 
 def _f32(x: float) -> str:
@@ -129,6 +199,7 @@ class Event:
     row       dict keyed by column name
     status    {"rb_drops": int, "samples_sent": int}
     log       str — a firmware message
+    ack       dict from parse_ack — the device's answer to a command
     bad       str — a malformed CSV line
     """
     kind: str
@@ -198,6 +269,8 @@ class StreamDecoder:
             return Event("status", status)
         if ftype == LOG:
             return Event("log", body.decode("utf-8", errors="replace"))
+        if ftype == ACK:
+            return Event("ack", parse_ack(body))
         return None                                   # unknown type: ignore, stay in sync
 
     # ── csv ───────────────────────────────────────────────────────────────────

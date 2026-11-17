@@ -51,6 +51,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("ports", help="list serial ports that look like a board")
 
+    p = sub.add_parser("pins", help="show or change which GPIOs this board's sensors use")
+    p.add_argument("--port", help="serial port (default: auto-detect)")
+    psub = p.add_subparsers(dest="pins_command", metavar="<action>")
+    psub.add_parser("show", help="show the connected board's id and pins (default)")
+    f = psub.add_parser("set", help="store new pins on the board; signals not given keep their pin")
+    for signal in ("sda", "scl", "gps-rx", "gps-tx"):
+        f.add_argument(f"--{signal}", type=int, metavar="GPIO")
+    psub.add_parser("reset", help="go back to the board's default pins")
+    psub.add_parser("restore", help="put this board's saved pins back, e.g. after a flash erase")
+
     p = sub.add_parser("doctor", help="check that this machine can flash and log")
     p.add_argument("--online", action="store_true", help="also check that firmware releases are reachable")
 
@@ -181,6 +191,85 @@ def cmd_ports(args, ws) -> int:
     return 0
 
 
+def _pin_rules(info: dict) -> dict | None:
+    """Pin rules for the board's firmware release, if they can be fetched."""
+    from . import firmware
+    try:
+        return firmware.boards(info.get("fw", "latest")).get(info.get("board"), {}).get("pin_rules")
+    except firmware.FirmwareError:
+        return None
+
+
+def _print_pins(pins: dict) -> None:
+    for signal, gpio in pins.items():
+        print(f"    {signal:<7} GPIO {gpio}")
+
+
+def cmd_pins(args, ws) -> int:
+    import serial
+
+    from . import device
+
+    action = args.pins_command or "show"
+    port = _port_or_exit(args.port)
+    try:
+        with serial.Serial(port, device.BAUD, timeout=0.1) as ser:
+            link = device.Link(ser)
+            info, pins = device.identify(link)
+            saved = device.load_profile(ws.root, info["id"])
+            print(f"  Board  : {info.get('board', '?')}, firmware {info.get('fw', '?')}")
+            print(f"  Device : {info['id']}")
+
+            if action == "show":
+                print(f"  Pins ({'set on this device' if info.get('pin_src') == 'stored' else 'board defaults'}):")
+                _print_pins(pins)
+                if saved and saved["pins"] != pins:
+                    print("  ! The pins saved for this device differ. `nav pins restore` puts them back.")
+                return 0
+
+            if action == "reset":
+                device.reset_pins(link)
+                device.delete_profile(ws.root, info["id"])
+                print("  Back to the board's default pins.")
+                return 0
+
+            if action == "restore":
+                if saved is None:
+                    print("  Nothing is saved for this device.")
+                    return 1
+                wanted = saved["pins"]
+            else:
+                chosen = {"sda": args.sda, "scl": args.scl, "gps_rx": args.gps_rx, "gps_tx": args.gps_tx}
+                if all(v is None for v in chosen.values()):
+                    print("ERROR: give at least one of --sda, --scl, --gps-rx, --gps-tx.")
+                    return 1
+                wanted = {s: pins[s] if v is None else v for s, v in chosen.items()}
+
+            if wanted == pins and info.get("pin_src") == "stored":
+                print("  The board already uses these pins.")
+            else:
+                bad = [f"{s}: GPIO {g} is not a GPIO number" for s, g in wanted.items() if not 0 <= g <= 255]
+                rules = None if bad else _pin_rules(info)
+                bad = bad or (device.pin_errors(wanted, rules) if rules else [])
+                if bad:
+                    print("ERROR: these pins cannot be used:")
+                    for reason in bad:
+                        print(f"    {reason}")
+                    return 1
+                device.set_pins(link, wanted)
+                print("  Stored on the device. Pins now in use:")
+                _print_pins(wanted)
+            path = device.save_profile(ws.root, info, wanted)
+            print(f"  Saved for this device in {path}")
+            return 0
+    except device.DeviceError as e:
+        print(f"ERROR: {e}")
+        return 1
+    except serial.SerialException as e:
+        print(f"ERROR: serial port: {e}")
+        return 1
+
+
 def cmd_doctor(args, ws) -> int:
     from . import doctor
     return doctor.run(ws, online=args.online)
@@ -250,12 +339,14 @@ def cmd_where(args, ws) -> int:
     print(f"  sessions  : {ws.data_dir}")
     print(f"  outputs   : {ws.outputs_dir}")
     print(f"  calibration parameters : {ws.params_file}")
+    print(f"  device pin profiles : {ws.root / 'devices'}")
     print(f"  firmware cache : {workspace.cache_dir() / 'firmware'}")
     return 0
 
 
 COMMANDS = {
-    "flash": cmd_flash, "firmware": cmd_firmware, "ports": cmd_ports, "doctor": cmd_doctor,
+    "flash": cmd_flash, "firmware": cmd_firmware, "ports": cmd_ports, "pins": cmd_pins,
+    "doctor": cmd_doctor,
     "record": cmd_record, "process": cmd_process, "calibrate": cmd_calibrate,
     "sessions": cmd_sessions, "log": cmd_log, "wizard": cmd_wizard, "where": cmd_where,
 }
