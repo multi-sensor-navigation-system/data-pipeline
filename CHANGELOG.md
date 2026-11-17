@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`nav pins`**: show, set, reset and restore the GPIOs a board's sensors
+  use. Each physical board is identified by its chip's unique id and keeps
+  its own pins; a copy is saved in `<workspace>/devices/<id>.json` so they
+  can be restored after a flash erase. Pins that cannot work are refused
+  with the reason, using the pin rules from the firmware release, and the
+  firmware checks every request again. Needs firmware with pin settings.
 - **`navkit` package and the `nav` command.** The pipeline is now an
   installable Python package (`pip install navkit`, `navkit[pipeline]` for
   the analysis stages) with subcommands: `flash`, `firmware`, `ports`,

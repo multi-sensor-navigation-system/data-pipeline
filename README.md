@@ -228,6 +228,9 @@ nav sessions
 |---|---|
 | `nav doctor [--online]` | Checks Python, serial access, drivers, the workspace and (with `--online`) firmware releases |
 | `nav ports` | Lists serial ports that look like a board |
+| `nav pins [show]` | Shows the connected board's unique id and the GPIOs its sensors use |
+| `nav pins set [--sda N] [--scl N] [--gps-rx N] [--gps-tx N]` | Stores new pins on that board. Pins that cannot work are refused with the reason, by navkit and again by the firmware |
+| `nav pins reset` / `nav pins restore` | Goes back to the board's default pins / puts the pins saved for this board back after a flash erase |
 | `nav flash [--board ID] [--version TAG] [--port P]` | Downloads a firmware release, verifies its SHA-256 and flashes it. `--board auto` (default) detects the chip. `--file image.bin` flashes a local build |
 | `nav firmware list` / `nav firmware fetch` | Lists releases and their boards / downloads an image without flashing |
 | `nav record --type T [--note N]` | Logs a new session from the board, then runs the whole pipeline on it |
@@ -261,7 +264,8 @@ Sessions, plots and calibration parameters live in one directory, the workspace:
 ├── outputs/
 │   ├── plots/<session>/
 │   └── reports/
-└── calibration_params.json
+├── calibration_params.json
+└── devices/<id>.json           pins saved per physical board (nav pins)
 ```
 
 It defaults to `~/navkit`. Change it with `nav --workspace DIR …` or the `NAVKIT_HOME` environment variable. Downloaded firmware is cached separately in the per-user cache directory (`nav where` prints both).

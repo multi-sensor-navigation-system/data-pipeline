@@ -5,7 +5,8 @@ The workspace is a plain directory:
     <workspace>/
     ├── data/<session>/...          raw, clean, diagnostics, calibrated, metadata.json
     ├── outputs/plots|reports/
-    └── calibration_params.json
+    ├── calibration_params.json
+    └── devices/<id>.json           pins saved per physical board (nav pins)
 
 It is resolved in this order: an explicit path (``--workspace``), the
 ``NAVKIT_HOME`` environment variable, then ``~/navkit``. Downloaded firmware
